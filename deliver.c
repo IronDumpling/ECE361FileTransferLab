@@ -24,7 +24,6 @@ void requestACK(int clientSocket, struct sockaddr_in*);
 void sendFile(int, struct sockaddr_in*, char*);
 void receiveFile(int, struct sockaddr_in*);
 void packetToString(char*, struct packet*);
-void stringToPacket(char*, struct packet*);
 
 // Function 1. Client Main Function
 int main(int argc, char **argv)
@@ -129,12 +128,9 @@ void sendFile(int clientSocket, struct sockaddr_in *serverAddress, char fileName
 
     // Send Multiple Fragments
     // Initialize packets
-    char **packets = malloc(sizeof(char*) * fragNum);
-    char receBuff[DataSize];
+    struct packet currPacket;
 
     for(int frag = 0; frag < fragNum; ++frag){
-        struct packet currPacket;
-
         // Assign Info
         currPacket.total_frag = fragNum;
         currPacket.frag_no = frag;
@@ -145,79 +141,21 @@ void sendFile(int clientSocket, struct sockaddr_in *serverAddress, char fileName
         memcpy(currPacket.filedata, file + (frag * DataSize), currPacket.size);
 
         // Convert Packet to String
-        packets[frag] = malloc(PacketSize * sizeof(char));
-        packetToString(packets[frag], &currPacket);
-    }
-
-    struct timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-
-    int ssk = setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
-    if(ssk < 0){
-        perror("Set Socket Failed\n");
-        exit(1);
-    }
-
-    int timeSent = 0;
-    socklen_t addressLength = sizeof(struct sockaddr);
-
-    struct packet ackPacket;
-    ackPacket.filename = (char*)malloc(PacketSize * sizeof(char));
-
-
-    for(int frag = 0; frag < fragNum; ++frag){
-        ++timeSent;
+        char stringPacket[PacketSize];
+        packetToString(stringPacket, &currPacket);
 
         // Send string packet
-        int snd = sendto(clientSocket, packets[frag], PacketSize, 0,
-                         (struct sockaddr*)serverAddress, addressLength);
+        socklen_t addressLength = sizeof(struct sockaddr);
+        int snd = sendto(clientSocket, stringPacket, PacketSize, 0,
+                        (struct sockaddr*)serverAddress, addressLength);
 
-        if(snd < 0){
-            perror("Send Packet Failed");
-            exit(1);
-        }else{
-            printf("Send Packet %d Succeed\n", frag);
-        }
-
-        // Receive ACK
-        memset(receBuff, 0, sizeof(char) * DataSize);
-
-        int length = recvfrom(clientSocket, receBuff, DataSize, 0,
-                              (struct sockaddr*)serverAddress, &addressLength);
-
-        if(length < 0){
-            // Resend if Timeout
-            if(timeSent < ALIVE)
-                continue;
-            // Else exit
-            perror("Receive Message Failed");
-            exit(1);
-        }
-
-        stringToPacket(receBuff, &ackPacket);
-
-        // Check contents of ACK Packet
-        if(strcmp(ackPacket.filename, fileName) == 0){
-            if(ackPacket.frag_no == frag){
-                if(strcmp(ackPacket.filedata, "ACK") == 0){
-                    timeSent = 0;
-                    continue;
-                }
-            }
-        }
-
-        // Resend
-        fprintf(stderr, "ACK packet #%d not received, resending attempt #%d\n", frag, timeSent);
-        --frag;
-    }
-
-    // Free Mem
-    for(int frag = 0; frag < fragNum; ++frag){
-        free(packets[frag]);
-    }
-    free(packets);
-    free(ackPacket.filename);
+       if(snd < 0){
+           perror("Send Packet Failed");
+           exit(1);
+       }else{
+           printf("Send Packet %d Succeed\n", frag);
+       }
+    }/
 }
 
 // Function 4. Receive File Function
