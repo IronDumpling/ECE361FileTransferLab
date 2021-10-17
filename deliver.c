@@ -92,12 +92,24 @@ bool getFile(char fileName[]){
 
 // Function 3. Send File Function
 void sendFile(int clientSocket, struct sockaddr_in *serverAddress, char fileName[]){
+    // Set Clock
+    clock_t start, end;
+    double RTT;
+
+    start = clock();
+    
     // Step 1. Wave Hand
     // Request Acknowledge
     requestACK(clientSocket, serverAddress);
 
     // Receive File
     receiveFile(clientSocket, serverAddress);
+
+    // End Time
+    end = clock();
+
+    RTT = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("The Round Trip Time is: %f second\n", RTT);
 
     // Step 2. Preparation
     // Initialize a File Struct
@@ -155,7 +167,7 @@ void sendFile(int clientSocket, struct sockaddr_in *serverAddress, char fileName
        }else{
            printf("Send Packet %d Succeed\n", frag);
        }
-    }/
+    }
 }
 
 // Function 4. Receive File Function
