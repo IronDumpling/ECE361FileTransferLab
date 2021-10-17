@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
         // Send back the response to indicate that a file transfer can start
         ssize_t preSendValid = sendto(serverFd, sendData, strlen(sendData)+1, 0, (struct sockaddr*)&clientAddr, addrLen);
         if (preSendValid != -1) {
-            printf("Successfully send the response.\n");
+            printf("Successfully send the response: %d.\n", strcmp(recvData, "ftp") == 0);
         } else {
             printf("Failed to send the response.\n");
             return false;
@@ -80,13 +80,12 @@ int main(int argc, char* argv[])
 
     // Start to wait for the real file trnasfer
     while (true) {
-        char recvData[1200];
+        char recvData[PacketSize] = "";
 
-        int recvValid = recvfrom(serverFd, recvData, 1200, 0, (struct sockaddr*)&clientAddr, &addrLen);
-        if (recvValid == -1) return false;
+        recvfrom(serverFd, recvData, PacketSize, 0, (struct sockaddr*)&clientAddr, &addrLen);
 
-        struct Packet packetFrag = {0, 0, 0, NULL};
-        memset(packetFrag.filedata, 0, 1000);
+        struct packet packetFrag = {0, 0, 0, NULL};
+        memset(packetFrag.filedata, 0, DataSize);
 
         stringToPacket(recvData, &packetFrag);
 
@@ -96,30 +95,45 @@ int main(int argc, char* argv[])
         strcpy(fileName, "dest/");
         strcat(fileName, packetFrag.filename);
 
-        FILE* newFile = fopen(fileName, "wb");
+        FILE* newFile = fopen(fileName, "w+");
         fwrite(packetFrag.filedata, packetFrag.size, 1, newFile);
         fclose(newFile);
 
+        printf("Received Fragment NO.%d; Data Size: %d; packet Size: %ld.\n", packetFrag.frag_no, packetFrag.size, sizeof(packetFrag));
+
+        if (packetFrag.frag_no == (packetFrag.total_frag - 1)) break;
+
         for (int i = 1; i <= totalFragNum; ++i) {
-            memset(recvData, 0, 1200);
+            memset(recvData, 0, PacketSize);
 
             packetFrag.total_frag = 0;
             packetFrag.frag_no = 0;
             packetFrag.size = 0;
             free(packetFrag.filename);
             packetFrag.filename = NULL;
-            memset(packetFrag.filedata, 0, 1000);
+            memset(packetFrag.filedata, 0, DataSize);
 
-            int microRecvValid = recvfrom(serverFd, recvData, 1200, 0, (struct sockaddr*) &clientAddr, &addrLen);
-            if (microRecvValid == -1) return -1;
+            printf("Before recv.\n");
+
+            recvfrom(serverFd, recvData, PacketSize, 0, (struct sockaddr*) &clientAddr, &addrLen);
+
+            printf("After recv.\n");
 
             stringToPacket(recvData, &packetFrag);
 
-            FILE* microNewFile = fopen(fileName, "ab");
-            fwrite(packetFrag.filename, packetFrag.size, 1, microNewFile);
+            FILE* microNewFile = fopen(fileName, "a");
+            fwrite(packetFrag.filedata, packetFrag.size, 1, microNewFile);
             fclose(microNewFile);
+
+            printf("Received Fragment NO.%d; Data Size: %d; packet Size: %ld.\n", packetFrag.frag_no, packetFrag.size, sizeof(packetFrag));
+
+            if (packetFrag.frag_no == (packetFrag.total_frag - 1)) break;
         }
+
+        break;
     }
+
+    printf("The file has been stored\n");
 
     return 0;
 }
