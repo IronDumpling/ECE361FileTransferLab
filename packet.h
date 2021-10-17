@@ -43,12 +43,12 @@ void packetToString(char destination[], struct packet* source){
     memcpy(destination + index, source->filedata, sizeof(char) * DataSize);
 }
 
-void stringToPacket(char* src, struct packet* dest) {
+void stringToPacket(char* src, struct packet* dest){
     int start = 0, end = 0;
-    char *buf;
+    char* buf;
 
     // Extract total_fragment number from first Position
-    while (src[end] != ':') end++;
+    while(src[end] != ':') end++;
     buf = malloc((end - start) * sizeof(char) + 1);
     memcpy(buf, &src[start], end - start);
     dest->total_frag = atoi(buf);
@@ -57,7 +57,7 @@ void stringToPacket(char* src, struct packet* dest) {
     free(buf);
 
     // Extract frag_no number from second Position
-    while (src[end] != ':') end++;
+    while(src[end] != ':') end++;
     buf = malloc((end - start) * sizeof(char) + 1);
     memcpy(buf, &src[start], end - start);
     dest->frag_no = atoi(buf);
@@ -66,7 +66,7 @@ void stringToPacket(char* src, struct packet* dest) {
     free(buf);
 
     // Extract size from third Position
-    while (src[end] != ':') end++;
+    while(src[end] != ':') end++;
     buf = malloc((end - start) * sizeof(char) + 1);
     memcpy(buf, &src[start], end - start);
     dest->size = atoi(buf);
@@ -75,11 +75,14 @@ void stringToPacket(char* src, struct packet* dest) {
     free(buf);
 
     // Extract file name from fourth Position
-    while (src[end] != ':') end++;
+    while(src[end] != ':') end++;
     dest->filename = malloc((end - start) * sizeof(char) + 1);
     memcpy(dest->filename, &src[start], end - start);
     end++;
     start = end;
+
+    // Lastly, Extract file data from Position left
+    memcpy(dest->filedata, &src[start], dest->size);
 }
 
 #endif
