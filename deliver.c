@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netdb.h>
 #include <libgen.h>
 // OS
@@ -93,10 +94,10 @@ bool getFile(char fileName[]){
 // Function 3. Send File Function
 void sendFile(int clientSocket, struct sockaddr_in *serverAddress, char fileName[]){
     // Set Clock
-    clock_t start, end;
+    struct timeval start, end;
     double RTT;
 
-    start = clock();
+    gettimeofday(&start, 0);
     
     // Step 1. Wave Hand
     // Request Acknowledge
@@ -106,9 +107,12 @@ void sendFile(int clientSocket, struct sockaddr_in *serverAddress, char fileName
     receiveFile(clientSocket, serverAddress);
 
     // End Time
-    end = clock();
+    gettimeofday(&end, 0);
 
-    RTT = ((double) (end - start)) / CLOCKS_PER_SEC;
+    long seconds = end.tv_sec - start.tv_sec;
+    long microSec = end.tv_usec - start.tv_usec;
+
+    RTT = seconds + microSec * 1e-6;
     printf("The Round Trip Time is: %f second\n", RTT);
 
     // Step 2. Preparation
