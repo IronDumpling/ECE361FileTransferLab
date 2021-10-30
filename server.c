@@ -118,9 +118,13 @@ int main(int argc, char *argv[])
    flag = false;
   }
   
+  char fileName[strlen(curr_packet->filename) + 10];
+  strcpy(fileName, "dest/");
+  strcat(fileName, curr_packet->filename);
+  
   // if this is the first packet, then open a file so that the incoming data can be written into it
   if (count == 1) {
-   file = fopen(curr_packet->filename, "wb");
+   file = fopen(fileName, "wb");
   }
   
   // only writes to file if the correct packet number is receieved
