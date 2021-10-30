@@ -1,15 +1,26 @@
 #include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <stdlib.h>
-#include <stdbool.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include "packet.h"
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    // Check if the usage is correct.
+ 
+ //*************************************************************************************
+ //                                     PART 1
+ //*************************************************************************************
+ 
+// Check if the usage is correct.
+
+ // Check if the usage is correct.
     if (argc != 2) {
         printf("Usage: ./server <UDP port number>\n");
         return -1;
@@ -78,62 +89,64 @@ int main(int argc, char* argv[])
         break;
     }
 
-    // Start to wait for the real file trnasfer
-    while (true) {
-        char recvData[PacketSize] = "";
-
-        recvfrom(serverFd, recvData, PacketSize, 0, (struct sockaddr*)&clientAddr, &addrLen);
-
-        struct packet packetFrag = {0, 0, 0, NULL};
-        memset(packetFrag.filedata, 0, DataSize);
-
-        stringToPacket(recvData, &packetFrag);
-
-        int totalFragNum = packetFrag.total_frag;
-
-        char fileName[strlen(packetFrag.filename) + 10];
-        strcpy(fileName, "dest/");
-        strcat(fileName, packetFrag.filename);
-
-        FILE* newFile = fopen(fileName, "w+");
-        fwrite(packetFrag.filedata, packetFrag.size, 1, newFile);
-        fclose(newFile);
-
-        printf("Received Fragment NO.%d; Data Size: %d; packet Size: %ld.\n", packetFrag.frag_no, packetFrag.size, sizeof(packetFrag));
-
-        if (packetFrag.frag_no == (packetFrag.total_frag - 1)) break;
-
-        for (int i = 1; i <= totalFragNum; ++i) {
-            memset(recvData, 0, PacketSize);
-
-            packetFrag.total_frag = 0;
-            packetFrag.frag_no = 0;
-            packetFrag.size = 0;
-            free(packetFrag.filename);
-            packetFrag.filename = NULL;
-            memset(packetFrag.filedata, 0, DataSize);
-
-            printf("Before recv.\n");
-
-            recvfrom(serverFd, recvData, PacketSize, 0, (struct sockaddr*) &clientAddr, &addrLen);
-
-            printf("After recv.\n");
-
-            stringToPacket(recvData, &packetFrag);
-
-            FILE* microNewFile = fopen(fileName, "a");
-            fwrite(packetFrag.filedata, packetFrag.size, 1, microNewFile);
-            fclose(microNewFile);
-
-            printf("Received Fragment NO.%d; Data Size: %d; packet Size: %ld.\n", packetFrag.frag_no, packetFrag.size, sizeof(packetFrag));
-
-            if (packetFrag.frag_no == (packetFrag.total_frag - 1)) break;
-        }
-
-        break;
-    }
-
-    printf("The file has been stored\n");
-
+ //*************************************************************************************
+ //                                     PART 2 / 3
+ //*************************************************************************************
+ 
+ // initializes file structure and necessary variables to detect all packets and write to file
+ FILE * file;
+ char data[PacketSize];
+ bool flag = true;
+ int count = 1;
+ 
+ // repeats continuously until all packets have been receieved
+ while (flag) {
+  
+  // detects the incoming packet from the client and error checks
+  int received_bytes_temp = recvfrom(serverFd, data, PacketSize, 0, (struct sockaddr *)&clientAddr, &addrLen);
+  if (received_bytes_temp == -1) {
+   printf("Error in receiving the packet message\n");
+   return 0;
+  }
+ 
+  // creates a packet and fills it with its corresponding members
+  struct packet * curr_packet = malloc(sizeof(struct packet));
+  stringToPacket(data, curr_packet);
+  
+  // if the last packet has been receieved, exit the loop
+  if (curr_packet->frag_no == curr_packet->total_frag) {
+   flag = false;
+  }
+  
+  // if this is the first packet, then open a file so that the incoming data can be written into it
+  if (count == 1) {
+   file = fopen(curr_packet->filename, "wb");
+  }
+  
+  // only writes to file if the correct packet number is receieved
+  if (count == curr_packet->frag_no) {
+   
+   // writes data to file
+   fwrite(curr_packet->filedata, 1, curr_packet->size, file);
+   
+   // sends back an "ACK" message to acknowledge packet has been receieved, and error checks
+   int sending_ack = sendto(serverFd, "ACK", 75, 0, (struct sockaddr *)&clientAddr, addrLen);
+   if (sending_ack == -1) {
+    printf("Error in sending the 'ACK' message\n");
     return 0;
+   }
+   
+   // increments counter to only write subsequent packet the next iteration
+   count++;
+  }
+  
+  // frees the packet struct before moving onto the next one
+  free(curr_packet);
+ }
+ 
+   // closes file, connection
+   fclose(file);
+   close(serverFd);
+ 
+   return 0;
 }
