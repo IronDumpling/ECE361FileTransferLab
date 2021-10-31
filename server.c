@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <time.h>
 #include "packet.h"
 
 int main(int argc, char *argv[])
@@ -100,11 +101,6 @@ int main(int argc, char *argv[])
         // create current packet
         struct packet* curr_packet = malloc(sizeof(struct packet));
         stringToPacket(data, curr_packet);
-        // simulate dropping packets
-        if (curr_packet->frag_no % 100 == 91) {
-            printf("Simulated packet dropping occurs.\n");
-            continue;
-        }
         // if the packet number is not what we are expecting, skip everything and waiting for another message
         if (curr_packet->frag_no != count) continue;
         // exit the loop after writing if all have been received.
